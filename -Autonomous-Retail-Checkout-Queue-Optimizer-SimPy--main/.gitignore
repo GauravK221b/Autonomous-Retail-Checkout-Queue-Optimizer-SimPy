@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# Temporary dump & verification text files
+doc_dump.txt
+paragraphs_xml.txt
+verify_doc.txt
+render_code_image.py
