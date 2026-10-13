@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   AreaChart,
   Area,
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -11,7 +11,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { Download, Search, FileSpreadsheet, ArrowDownRight, TrendingDown } from 'lucide-react';
+import { Download, Search, FileSpreadsheet, Trophy, ArrowDownRight, TrendingDown } from 'lucide-react';
 
 export default function BenchmarkLogsView({ benchmarkData }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,7 +21,7 @@ export default function BenchmarkLogsView({ benchmarkData }) {
   const randTotalWait = benchmarkData?.randomTotalWait ?? 381;
   const optTotalWait = benchmarkData?.optimizedTotalWait ?? 268;
   const reductionPct = benchmarkData?.congestionReductionPct ?? 29.66;
-  const waitDiff = randTotalWait - optTotalWait;
+  const leaderboard = benchmarkData?.leaderboard || [];
 
   // Filter logs
   const filteredSteps = steps.filter((s) => {
@@ -42,10 +42,16 @@ export default function BenchmarkLogsView({ benchmarkData }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `optiqueue_benchmark_100steps.csv`;
+    a.download = `optiqueue_multi_model_benchmark_100steps.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const chartData = leaderboard.map((m) => ({
+    name: m.name,
+    totalWait: m.totalWait,
+    improvement: m.improvement
+  }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -55,176 +61,217 @@ export default function BenchmarkLogsView({ benchmarkData }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <FileSpreadsheet size={22} color="#10b981" />
-              <h2 style={{ fontSize: '1.25rem' }}>100-Timestep Simulation Benchmark Evaluation</h2>
+              <h2 style={{ fontSize: '1.25rem' }}>100-Timestep Multi-Model Benchmark Arena</h2>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
-              Evaluating trained Tabular Q-Learning policy directly against Random routing under identical seeds.
+              Side-by-side evaluation across all 6 Reinforcement Learning algorithms and heuristic baselines under identical seeds.
             </p>
           </div>
 
-          <button className="btn btn-secondary" onClick={exportCSV}>
+          <button className="btn btn-secondary" onClick={exportCSV} disabled={!steps.length}>
             <Download size={16} />
             Export Benchmark CSV
           </button>
         </div>
 
-        {/* 4 Summary Stat Pills */}
+        {/* Metric Cards Row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '20px' }}>
-          <div style={{ padding: '16px', background: 'var(--bg-tertiary)', borderRadius: '10px' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Random Baseline Wait</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ef4444' }}>{randTotalWait}</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Total customer wait-units</div>
+          <div style={{ padding: '16px', borderRadius: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Random Baseline Wait</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', marginTop: '4px' }}>
+              {randTotalWait} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>units</span>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              Avg {benchmarkData?.randomAvgWaitPerStep ?? 3.81} / step
+            </div>
           </div>
 
-          <div style={{ padding: '16px', background: 'var(--bg-tertiary)', borderRadius: '10px' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Q-Learning Wait</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#10b981' }}>{optTotalWait}</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Total customer wait-units</div>
+          <div style={{ padding: '16px', borderRadius: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Top RL Optimizer Wait</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
+              {leaderboard[0]?.totalWait ?? optTotalWait} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>units</span>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              Leader: {leaderboard[0]?.name ?? 'Q-Learning'}
+            </div>
           </div>
 
-          <div style={{ padding: '16px', background: 'var(--bg-tertiary)', borderRadius: '10px' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Congestion Reduction</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#10b981' }}>{reductionPct}%</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Total backlog reduction</div>
+          <div style={{ padding: '16px', borderRadius: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Max Congestion Reduction</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
+              {leaderboard[0]?.improvement ? `+${leaderboard[0].improvement}%` : `+${reductionPct}%`}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              vs Baseline Random Dispatch
+            </div>
           </div>
 
-          <div style={{ padding: '16px', background: 'var(--bg-tertiary)', borderRadius: '10px' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Savings</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#3b82f6' }}>-{waitDiff}</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Wait-units eliminated</div>
+          <div style={{ padding: '16px', borderRadius: '10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Models Evaluated</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-color)', marginTop: '4px' }}>
+              {leaderboard.length || 8} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>policies</span>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              6 RL + 2 Baselines
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Store Load Over Time (Plot 5 replica) */}
+      {/* Leaderboard Table & Chart Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
+        {/* Leaderboard Table */}
+        <div className="glass-card">
+          <div className="card-header">
+            <div className="card-title-group">
+              <Trophy size={18} color="#f59e0b" />
+              <span className="card-title">Multi-Model Performance Ranking</span>
+            </div>
+            <span className="badge badge-success">Ranked by Total Wait</span>
+          </div>
+
+          <div className="card-body" style={{ padding: '0' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '10px 14px' }}>Rank</th>
+                    <th style={{ padding: '10px 14px' }}>Algorithm</th>
+                    <th style={{ padding: '10px 14px' }}>Type</th>
+                    <th style={{ padding: '10px 14px' }}>Total Wait</th>
+                    <th style={{ padding: '10px 14px' }}>Avg / Step</th>
+                    <th style={{ padding: '10px 14px' }}>Reduction</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboard.map((m, idx) => {
+                    const isWinner = idx === 0;
+                    return (
+                      <tr key={m.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 800 }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            background: isWinner ? '#f59e0b' : 'var(--bg-tertiary)',
+                            color: isWinner ? '#000' : 'var(--text-primary)',
+                            fontSize: '0.72rem'
+                          }}>
+                            #{idx + 1}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700 }}>{m.name}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: '0.78rem' }}>{m.tag}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, fontFamily: 'monospace' }}>{m.totalWait}</td>
+                        <td style={{ padding: '10px 14px', fontFamily: 'monospace' }}>{m.avgWait}</td>
+                        <td style={{
+                          padding: '10px 14px',
+                          fontWeight: 700,
+                          color: m.improvement > 0 ? '#10b981' : m.improvement < 0 ? '#ef4444' : 'var(--text-muted)'
+                        }}>
+                          {m.improvement > 0 ? `+${m.improvement}%` : `${m.improvement}%`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Wait Comparison Bar Chart */}
+        <div className="glass-card">
+          <div className="card-header">
+            <div className="card-title-group">
+              <span className="card-title">Total Wait-Units by Algorithm</span>
+            </div>
+            <span className="badge badge-info">Lower is Better</span>
+          </div>
+
+          <div className="card-body" style={{ height: '320px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 20, left: 40, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.6} />
+                <XAxis type="number" stroke="var(--text-muted)" fontSize={12} />
+                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={120} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderColor: 'var(--border-color)',
+                    borderRadius: '8px',
+                    color: 'var(--text-primary)'
+                  }}
+                />
+                <Bar dataKey="totalWait" name="Total Customer Wait" fill="#10b981" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Step-by-Step Transition Log Table */}
       <div className="glass-card">
         <div className="card-header">
           <div className="card-title-group">
-            <span className="card-title">Total Customers in Store Over Time (100 Steps)</span>
-          </div>
-          <span className="badge badge-success">Cumulative Store Load Profile</span>
-        </div>
-        <div className="card-body" style={{ height: '340px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={steps} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.6} />
-              <XAxis dataKey="step" stroke="var(--text-muted)" fontSize={12} label={{ value: 'Simulation Steps', position: 'insideBottom', offset: -5 }} />
-              <YAxis stroke="var(--text-muted)" fontSize={12} label={{ value: 'Total Queue Length', angle: -90, position: 'insideLeft' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderColor: 'var(--border-color)',
-                  borderRadius: '8px',
-                  color: 'var(--text-primary)'
-                }}
-              />
-              <Legend verticalAlign="top" height={36} />
-              <Line
-                type="monotone"
-                dataKey="randomTotal"
-                name="Random Baseline Queue Load"
-                stroke="#ef4444"
-                strokeWidth={2}
-                dot={false}
-                strokeDasharray="4 4"
-              />
-              <Line
-                type="monotone"
-                dataKey="optTotal"
-                name="Q-Learning Optimized Queue Load"
-                stroke="#10b981"
-                strokeWidth={2.5}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Step Transition Logs Table */}
-      <div className="glass-card">
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: '14px' }}>
-          <div className="card-title-group">
-            <span className="card-title">Step-by-Step Transition & Allocation Logs</span>
-            <span className="badge badge-info">{filteredSteps.length} of {steps.length} Steps</span>
+            <span className="card-title">Detailed Step-by-Step Transition Logs ({filteredSteps.length} Steps)</span>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-muted)' }} />
+              <Search size={15} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
               <input
                 type="text"
                 placeholder="Search step #..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
-                  background: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
+                  padding: '6px 12px 6px 32px',
                   borderRadius: '6px',
-                  padding: '7px 12px 7px 32px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-tertiary)',
                   color: 'var(--text-primary)',
                   fontSize: '0.85rem'
                 }}
               />
             </div>
-
-            <select
-              value={selectedActionFilter}
-              onChange={(e) => setSelectedActionFilter(e.target.value)}
-              style={{
-                background: 'var(--bg-tertiary)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                padding: '7px 10px',
-                fontSize: '0.85rem'
-              }}
-            >
-              <option value="all">All Routed Lanes</option>
-              <option value="0">Routed Lane 0</option>
-              <option value="1">Routed Lane 1</option>
-              <option value="2">Routed Lane 2</option>
-            </select>
           </div>
         </div>
 
         <div className="card-body" style={{ padding: 0 }}>
-          <div className="table-responsive" style={{ maxHeight: '420px', overflowY: 'auto' }}>
-            <table className="custom-table">
-              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                <tr>
-                  <th>Step</th>
-                  <th>Random Queues (q₀, q₁, q₂)</th>
-                  <th>Random Routed</th>
-                  <th>Random Total</th>
-                  <th>Opt Queues (q₀, q₁, q₂)</th>
-                  <th>Opt Routed</th>
-                  <th>Opt Total</th>
-                  <th>Wait Delta</th>
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+              <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 10 }}>
+                <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: '10px 14px' }}>Step</th>
+                  <th style={{ padding: '10px 14px' }}>Random Queue [0, 1, 2]</th>
+                  <th style={{ padding: '10px 14px' }}>Random Action</th>
+                  <th style={{ padding: '10px 14px' }}>RL Queue [0, 1, 2]</th>
+                  <th style={{ padding: '10px 14px' }}>RL Action</th>
+                  <th style={{ padding: '10px 14px' }}>Wait Difference</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredSteps.map((s) => (
-                  <tr key={s.step}>
-                    <td style={{ fontWeight: 700 }}>#{s.step}</td>
-                    <td>({s.randomLanes.join(', ')})</td>
-                    <td>
-                      <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
-                        Lane {s.randomAction}
-                      </span>
+                {filteredSteps.slice(0, 100).map((s) => (
+                  <tr key={s.step} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <td style={{ padding: '10px 14px', fontWeight: 600 }}>#{s.step}</td>
+                    <td style={{ padding: '10px 14px', fontFamily: 'monospace' }}>
+                      [{s.randomLanes.join(', ')}] = {s.randomTotal}
                     </td>
-                    <td style={{ fontWeight: 600 }}>{s.randomTotal}</td>
-                    <td>({s.optLanes.join(', ')})</td>
-                    <td>
-                      <span className={`badge cell-lane-${s.optAction}`} style={{ padding: '3px 8px' }}>
-                        Lane {s.optAction}
-                      </span>
+                    <td style={{ padding: '10px 14px', color: '#ef4444', fontWeight: 600 }}>
+                      Lane {s.randomAction}
                     </td>
-                    <td style={{ fontWeight: 700, color: '#10b981' }}>{s.optTotal}</td>
-                    <td>
-                      <span style={{ fontWeight: 700, color: s.waitDifference > 0 ? '#10b981' : (s.waitDifference < 0 ? '#ef4444' : 'var(--text-muted)') }}>
-                        {s.waitDifference > 0 ? `-${s.waitDifference} saved` : (s.waitDifference < 0 ? `+${Math.abs(s.waitDifference)}` : '0')}
-                      </span>
+                    <td style={{ padding: '10px 14px', fontFamily: 'monospace', color: '#10b981', fontWeight: 600 }}>
+                      [{s.optLanes.join(', ')}] = {s.optTotal}
+                    </td>
+                    <td style={{ padding: '10px 14px', color: '#10b981', fontWeight: 600 }}>
+                      Lane {s.optAction}
+                    </td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700, color: s.waitDifference >= 0 ? '#10b981' : '#ef4444' }}>
+                      {s.waitDifference >= 0 ? `+${s.waitDifference}` : s.waitDifference}
                     </td>
                   </tr>
                 ))}

@@ -8,6 +8,7 @@ import BenchmarkLogsView from './components/BenchmarkLogsView';
 import ConfigModal from './components/ConfigModal';
 import CheckoutLanesView from './components/CheckoutLanesView';
 import SimulationControls from './components/SimulationControls';
+import ComparativeAnalysisView from './components/ComparativeAnalysisView';
 import { api } from './api';
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
   const [trainedEpisodes, setTrainedEpisodes] = useState(250);
   const [serviceRates, setServiceRates] = useState([0.6, 0.4, 0.3]);
   const [maxQueueLen, setMaxQueueLen] = useState(5);
+  const [availableModels, setAvailableModels] = useState([]);
 
   // Interactive Simulation State
   const [currentQueues, setCurrentQueues] = useState([1, 1, 0]);
@@ -29,7 +31,7 @@ export default function App() {
   const [qValues, setQValues] = useState([0, 0, 0]);
   const [recommendedAction, setRecommendedAction] = useState(0);
 
-  // Controls
+  // Active Model & Policy Controls
   const [isPlaying, setIsPlaying] = useState(false);
   const [mode, setMode] = useState('q_learning');
   const [speed, setSpeed] = useState(1000);
@@ -67,9 +69,10 @@ export default function App() {
           setTrainedEpisodes(status.trainedEpisodes);
           setServiceRates(status.serviceRates);
           setMaxQueueLen(status.maxQueueLen);
+          if (status.models) setAvailableModels(status.models);
         }
 
-        // Run default benchmark
+        // Run default multi-model benchmark
         const bench = await api.runBenchmark(100, status.serviceRates);
         if (isMounted) {
           setBenchmarkData(bench);
@@ -83,7 +86,7 @@ export default function App() {
           setRecommendedAction(initialInteractive.recommendedAction);
         }
 
-        // Fetch initial SimPy run
+        // Fetch initial SimPy arena run
         const simpyRes = await api.runSimPy({ arrivalRate: 1.0, simulationTime: 120 });
         if (isMounted) {
           setSimpyData(simpyRes);
@@ -99,7 +102,10 @@ export default function App() {
     const pingInterval = setInterval(async () => {
       try {
         const s = await api.getStatus();
-        if (isMounted) setBackendConnected(s.status === 'online');
+        if (isMounted) {
+          setBackendConnected(s.status === 'online');
+          if (s.models) setAvailableModels(s.models);
+        }
       } catch {
         if (isMounted) setBackendConnected(false);
       }
@@ -110,6 +116,18 @@ export default function App() {
       clearInterval(pingInterval);
     };
   }, []);
+
+  // Sync Q-values and action recommendation when mode switches
+  useEffect(() => {
+    if (['q_learning', 'sarsa', 'bandit', 'reinforce', 'a2c', 'ppo', 'dqn', 'double_dqn', 'ddpg'].includes(mode)) {
+      api.getQValues(currentQueues[0], currentQueues[1], currentQueues[2], mode)
+        .then((res) => {
+          setQValues(res.qValues);
+          setRecommendedAction(res.bestAction);
+        })
+        .catch(console.error);
+    }
+  }, [mode]);
 
   // Step Handler
   const handleStep = async (actionOverride = null) => {
@@ -131,7 +149,7 @@ export default function App() {
   const handleReset = async () => {
     setIsPlaying(false);
     try {
-      const res = await api.resetInteractive();
+      const res = await api.resetInteractive(mode);
       setCurrentQueues(res.state);
       setLastAction(null);
       setLastServed([false, false, false]);
@@ -168,7 +186,7 @@ export default function App() {
   const handleRunBenchmark = async () => {
     setIsBenchmarking(true);
     try {
-      const res = await api.runBenchmark(100, serviceRates);
+      const res = await api.runBenchmark(100, serviceRates, mode);
       setBenchmarkData(res);
     } catch (err) {
       console.error('Benchmark run failed:', err);
@@ -187,9 +205,12 @@ export default function App() {
       if (config.serviceRates) {
         setServiceRates(config.serviceRates);
       }
-      // Re-run benchmark with new model
+      // Re-run multi-model benchmark with newly trained parameters
       const bench = await api.runBenchmark(100, config.serviceRates);
       setBenchmarkData(bench);
+      // Re-run SimPy arena
+      const simpyRes = await api.runSimPy({ arrivalRate: 1.0, simulationTime: 120 });
+      setSimpyData(simpyRes);
     } catch (err) {
       console.error('Training failed:', err);
     } finally {
@@ -249,6 +270,10 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'comparison' && (
+            <ComparativeAnalysisView />
+          )}
+
           {activeTab === 'simulation' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <SimulationControls
@@ -281,7 +306,7 @@ export default function App() {
           {activeTab === 'policy' && (
             <PolicyStudioView
               trainingHistory={trainingHistory}
-              onRetrain={() => handleRetrain({ episodes: 250, stepsPerEpisode: 25 })}
+              onRetrain={handleRetrain}
               isTraining={isTraining}
             />
           )}

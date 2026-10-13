@@ -14,7 +14,7 @@ import {
 import KPICards from './KPICards';
 import CheckoutLanesView from './CheckoutLanesView';
 import SimulationControls from './SimulationControls';
-import { Sparkles, Info, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Trophy, Cpu, Zap, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 
 export default function OverviewView({
   benchmarkData,
@@ -37,24 +37,24 @@ export default function OverviewView({
   totalReward,
   onManualDispatch
 }) {
-  // Chart data from benchmark step details
   const timeSeriesData = benchmarkData?.stepDetails ? benchmarkData.stepDetails.slice(0, 50) : [];
+  const leaderboard = benchmarkData?.leaderboard || [];
 
   const laneBarData = [
     {
-      name: 'Lane 0 (Fast)',
+      name: 'Lane 0 (Fast: μ=0.6)',
       current: currentQueues[0] || 0,
       capacity: maxQueueLen,
       rate: serviceRates[0] * 100
     },
     {
-      name: 'Lane 1 (Mid)',
+      name: 'Lane 1 (Mid: μ=0.4)',
       current: currentQueues[1] || 0,
       capacity: maxQueueLen,
       rate: serviceRates[1] * 100
     },
     {
-      name: 'Lane 2 (Slow)',
+      name: 'Lane 2 (Slow: μ=0.3)',
       current: currentQueues[2] || 0,
       capacity: maxQueueLen,
       rate: serviceRates[2] * 100
@@ -97,6 +97,88 @@ export default function OverviewView({
         onManualDispatch={onManualDispatch}
       />
 
+      {/* Multi-Model Benchmark Leaderboard Banner */}
+      {leaderboard.length > 0 && (
+        <div className="glass-card" style={{ padding: '20px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Trophy size={20} color="#f59e0b" />
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                RL Model Arena Leaderboard (100 Steps)
+              </h3>
+            </div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Ranked by Lowest Customer Wait Units
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
+            {leaderboard.map((m, idx) => {
+              const isSelected = m.id === mode;
+              const isWinner = idx === 0;
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => setMode(m.id)}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: isSelected ? '2px solid #10b981' : '1px solid var(--border-color)',
+                    background: isSelected ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-tertiary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                  title="Click to activate this model in simulation"
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: isWinner ? '#f59e0b' : 'var(--bg-secondary)',
+                        color: isWinner ? '#000' : 'var(--text-primary)'
+                      }}>
+                        #{idx + 1}
+                      </span>
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{m.name}</span>
+                    </div>
+                    {isSelected && (
+                      <span style={{ fontSize: '0.65rem', background: '#10b981', color: '#fff', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                        Active
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Total Wait</div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800 }}>{m.totalWait} units</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Reduction</div>
+                      <div style={{
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        color: m.improvement > 0 ? '#10b981' : m.improvement < 0 ? '#ef4444' : 'var(--text-muted)'
+                      }}>
+                        {m.improvement > 0 ? `+${m.improvement}%` : `${m.improvement}%`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Recharts Data Analytics Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
         {/* Real-time Queue Load Over Time Chart */}
@@ -135,7 +217,7 @@ export default function OverviewView({
                 <Area
                   type="monotone"
                   dataKey="randomTotal"
-                  name="Random Baseline Queue"
+                  name="Random Baseline"
                   stroke="#ef4444"
                   strokeWidth={2}
                   fillOpacity={1}
@@ -145,7 +227,7 @@ export default function OverviewView({
                 <Area
                   type="monotone"
                   dataKey="optTotal"
-                  name="Q-Learning Optimized Queue"
+                  name="Active RL Agent"
                   stroke="#10b981"
                   strokeWidth={2.5}
                   fillOpacity={1}
@@ -192,38 +274,37 @@ export default function OverviewView({
         <div className="card-header">
           <div className="card-title-group">
             <Sparkles size={18} color="#10b981" />
-            <span className="card-title">Autonomous Optimization Insights</span>
+            <span className="card-title">Reinforcement Learning Architecture Spectrum</span>
           </div>
-          <span className="badge badge-success">Algorithm: Tabular Q-Learning (Off-Policy 1-Step TD)</span>
+          <span className="badge badge-success">6 Algorithms Implemented & Active</span>
         </div>
         <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
           <div style={{ display: 'flex', gap: '12px' }}>
             <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Asymmetric Cashier Prioritization</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Value-Based: Q-Learning vs SARSA</div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                The agent prioritizes Lane 0 (Fast: μ=0.60) to maximize store customer discharge rate while dynamically diverting overflow to Lane 1 and Lane 2 only when Lane 0 queue exceeds equilibrium.
+                Q-Learning learns optimal off-policy values while SARSA accounts for exploration, learning safer routing policies near queue thresholds.
               </div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <CheckCircle2 size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Queue Variance Penalty (R_imb)</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Reward function penalizes 0.5 * Var(q), actively disincentivizing cashier starvation and preventing single-line pileups that cause customer dissatisfaction.
-              </div>
-            </div>
-          </div>
-
 
           <div style={{ display: 'flex', gap: '12px' }}>
             <CheckCircle2 size={20} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Model-Free Learning</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Multi-Armed Bandit (UCB1)</div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                No prior knowledge of Poisson arrival distributions or exact cashier service times is required; the policy converges purely through TD error feedback.
+                Adaptive arm selection baseline utilizing Upper Confidence Bounds for immediate queue reward balancing without discount factor.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <CheckCircle2 size={20} color="#6366f1" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Policy Gradients: REINFORCE, A2C, PPO</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                From episodic Monte Carlo with baseline (REINFORCE) to TD Actor-Critic (A2C) and clipped surrogate objectives (PPO) for high stability.
               </div>
             </div>
           </div>

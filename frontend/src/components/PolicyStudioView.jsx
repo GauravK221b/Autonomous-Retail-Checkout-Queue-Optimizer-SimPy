@@ -11,216 +11,349 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { Brain, Sliders, Zap, CheckCircle2, RefreshCw } from 'lucide-react';
+import {
+  Brain,
+  Sliders,
+  Zap,
+  Repeat,
+  CircleDot,
+  TrendingUp,
+  Cpu,
+  Rocket,
+  CheckCircle2,
+  RefreshCw,
+  Sparkles,
+  Layers,
+  GitFork,
+  Target
+} from 'lucide-react';
 import { api } from '../api';
 
+const MODELS = [
+  { id: 'q_learning', name: 'Q-Learning', tag: 'Off-Policy TD', icon: Zap, color: '#10b981' },
+  { id: 'sarsa', name: 'SARSA', tag: 'On-Policy TD', icon: Repeat, color: '#06b6d4' },
+  { id: 'bandit', name: 'Multi-Armed Bandit', tag: 'Contextual UCB1', icon: CircleDot, color: '#f59e0b' },
+  { id: 'reinforce', name: 'REINFORCE', tag: 'Monte Carlo PG', icon: TrendingUp, color: '#ec4899' },
+  { id: 'a2c', name: 'A2C Actor-Critic', tag: 'Advantage TD', icon: Cpu, color: '#8b5cf6' },
+  { id: 'ppo', name: 'PPO', tag: 'Clipped Surrogate', icon: Rocket, color: '#6366f1' },
+  { id: 'dqn', name: 'DQN', tag: 'Deep Q-Net', icon: Layers, color: '#14b8a6' },
+  { id: 'double_dqn', name: 'Double DQN', tag: 'Decoupled Target', icon: GitFork, color: '#0ea5e9' },
+  { id: 'ddpg', name: 'DDPG', tag: 'Deterministic PG', icon: Target, color: '#a855f7' }
+];
+
 export default function PolicyStudioView({ trainingHistory, onRetrain, isTraining }) {
+  const [selectedModel, setSelectedModel] = useState('q_learning');
   const [fixedLane2, setFixedLane2] = useState(0);
   const [policyData, setPolicyData] = useState(null);
   const [probeState, setProbeState] = useState({ q0: 1, q1: 2, q2: 0 });
   const [probeResult, setProbeResult] = useState(null);
+  const [localHistory, setLocalHistory] = useState([]);
 
-  // Fetch policy slice when fixedLane2 changes
+  // Fetch policy slice when fixedLane2 or selectedModel changes
   useEffect(() => {
     let isMounted = true;
-    api.getPolicy(fixedLane2).then((data) => {
+    api.getPolicy(fixedLane2, selectedModel).then((data) => {
       if (isMounted) setPolicyData(data);
     }).catch(console.error);
 
     return () => { isMounted = false; };
-  }, [fixedLane2]);
+  }, [fixedLane2, selectedModel]);
 
-  // Fetch probe Q-values
+  // Fetch probe values for selected model
   useEffect(() => {
     let isMounted = true;
-    api.getQValues(probeState.q0, probeState.q1, probeState.q2).then((data) => {
+    api.getQValues(probeState.q0, probeState.q1, probeState.q2, selectedModel).then((data) => {
       if (isMounted) setProbeResult(data);
     }).catch(console.error);
 
     return () => { isMounted = false; };
-  }, [probeState]);
+  }, [probeState, selectedModel]);
 
   const probeChartData = probeResult ? [
-    { name: 'Lane 0 (Fast)', qValue: probeResult.qValues[0], fill: '#10b981' },
-    { name: 'Lane 1 (Mid)', qValue: probeResult.qValues[1], fill: '#3b82f6' },
-    { name: 'Lane 2 (Slow)', qValue: probeResult.qValues[2], fill: '#f59e0b' }
+    { name: 'Lane 0 (Fast)', value: probeResult.qValues[0], fill: '#10b981' },
+    { name: 'Lane 1 (Mid)', value: probeResult.qValues[1], fill: '#3b82f6' },
+    { name: 'Lane 2 (Slow)', value: probeResult.qValues[2], fill: '#f59e0b' }
   ] : [];
+
+  const activeModelMeta = MODELS.find((m) => m.id === selectedModel) || MODELS[0];
+  const ActiveIcon = activeModelMeta.icon;
+
+  const handleRetrainCurrent = async () => {
+    await onRetrain({ modelType: selectedModel, episodes: 250, stepsPerEpisode: 25 });
+  };
+
+  const handleRetrainAll = async () => {
+    await onRetrain({ modelType: 'all', episodes: 250, stepsPerEpisode: 25 });
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Policy Studio Header Controls */}
       <div className="glass-card" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem' }}>Reinforcement Learning Policy & Q-Function Studio</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '2px' }}>
-            Inspect optimal lane selection policies, value convergence, and arbitrary state transitions.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ActiveIcon size={22} color={activeModelMeta.color} />
+            <h2 style={{ fontSize: '1.25rem', margin: 0 }}>RL Policy & Value Studio: {activeModelMeta.name}</h2>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+            Inspect optimal lane selection policies, value convergence, and arbitrary state transitions across 6 RL architectures.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-            <span>Fixed Lane 2 Queue ($q_2$):</span>
-            <select
-              value={fixedLane2}
-              onChange={(e) => setFixedLane2(Number(e.target.value))}
-              style={{
-                background: 'var(--bg-tertiary)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                padding: '6px 10px',
-                fontWeight: 600
-              }}
-            >
-              {[0, 1, 2, 3, 4, 5].map((val) => (
-                <option key={val} value={val}>q₂ = {val}</option>
-              ))}
-            </select>
-          </div>
-
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
             className="btn btn-secondary btn-sm"
-            onClick={onRetrain}
+            onClick={handleRetrainCurrent}
             disabled={isTraining}
+            title="Retrain only this model"
           >
-            {isTraining ? <RefreshCw size={14} className="animate-spin" /> : <Brain size={14} />}
-            {isTraining ? 'Training Agent...' : 'Retrain Agent'}
+            <RefreshCw size={14} className={isTraining ? 'spin-icon' : ''} />
+            Retrain {activeModelMeta.name}
+          </button>
+
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleRetrainAll}
+            disabled={isTraining}
+            title="Retrain all 6 models simultaneously"
+          >
+            <Sparkles size={14} className={isTraining ? 'spin-icon' : ''} />
+            Retrain All 6 Models
           </button>
         </div>
       </div>
 
-      {/* Heatmap Comparison: Initial Random vs Final Q-Learning Policy */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '24px' }}>
-        {/* Learned Policy Heatmap */}
+      {/* Model Selection Tabs Bar */}
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+        {MODELS.map((m) => {
+          const Icon = m.icon;
+          const isSelected = m.id === selectedModel;
+          return (
+            <button
+              key={m.id}
+              onClick={() => setSelectedModel(m.id)}
+              className="btn"
+              style={{
+                flex: '1 1 auto',
+                minWidth: '150px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: isSelected ? `2px solid ${m.color}` : '1px solid var(--border-color)',
+                background: isSelected ? `${m.color}20` : 'var(--bg-secondary)',
+                color: isSelected ? m.color : 'var(--text-primary)',
+                fontWeight: isSelected ? 700 : 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Icon size={16} color={m.color} />
+              <span>{m.name}</span>
+              <span style={{
+                fontSize: '0.68rem',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                background: `${m.color}30`,
+                color: m.color
+              }}>
+                {m.tag}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Fixed Lane 2 Queue Slider */}
+      <div className="glass-card" style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Sliders size={18} color="var(--accent-color)" />
+          <span style={{ fontWeight: 600 }}>2D Slice Plane (Fixed Counter 2 Queue):</span>
+          <span className="badge badge-info" style={{ fontSize: '0.9rem', fontWeight: 700 }}>
+            q₂ = {fixedLane2} customers
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '240px' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>0</span>
+          <input
+            type="range"
+            min="0"
+            max="5"
+            value={fixedLane2}
+            onChange={(e) => setFixedLane2(Number(e.target.value))}
+            style={{ flex: 1 }}
+          />
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>5</span>
+        </div>
+      </div>
+
+      {/* Policy Matrix & Heatmaps Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
+        {/* Learned Policy Decision Heatmap */}
         <div className="glass-card">
           <div className="card-header">
             <div className="card-title-group">
-              <span className="card-title">Learned Optimal Policy [Fixed Lane 2 = {fixedLane2}]</span>
+              <span className="card-title">{activeModelMeta.name} Decision Matrix (q₂ = {fixedLane2})</span>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <span className="badge badge-success">L0: Fast</span>
-              <span className="badge badge-info">L1: Mid</span>
-              <span className="badge badge-warning">L2: Slow</span>
+            <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#10b981' }} /> L0 (Fast)
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#3b82f6' }} /> L1 (Mid)
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b' }} /> L2 (Slow)
+              </span>
             </div>
           </div>
-          <div className="card-body">
-            <div style={{ textAlign: 'center', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Y-axis: Counter 0 Queue ($q_0 \in 0..5$) | X-axis: Counter 1 Queue ($q_1 \in 0..5$)
-            </div>
 
-            <div className="heatmap-container">
-              {policyData?.learnedPolicy ? (
-                policyData.learnedPolicy.map((row, q0) =>
-                  row.map((action, q1) => (
-                    <div
-                      key={`${q0}-${q1}`}
-                      className={`heatmap-cell cell-lane-${action}`}
-                      title={`State: (q0=${q0}, q1=${q1}, q2=${fixedLane2}) -> Optimal Action: Lane ${action}`}
-                      onClick={() => setProbeState({ q0, q1, q2: fixedLane2 })}
-                    >
-                      L{action}
+          <div className="card-body">
+            {policyData ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '50px repeat(6, 1fr)', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <div>q₀ \ q₁</div>
+                  {[0, 1, 2, 3, 4, 5].map((col) => <div key={col}>q₁={col}</div>)}
+                </div>
+
+                {policyData.learnedPolicy.map((row, rIdx) => (
+                  <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: '50px repeat(6, 1fr)', gap: '6px', alignItems: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>
+                      q₀={rIdx}
                     </div>
-                  ))
-                )
-              ) : (
-                <div style={{ gridColumn: 'span 6', padding: '40px', textAlign: 'center' }}>Loading policy tensor...</div>
-              )}
-            </div>
-            <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Click any cell to inspect its exact action values $Q(s, a)$.
-            </div>
+                    {row.map((action, cIdx) => {
+                      const color = action === 0 ? '#10b981' : action === 1 ? '#3b82f6' : '#f59e0b';
+                      return (
+                        <div
+                          key={cIdx}
+                          style={{
+                            background: `${color}25`,
+                            border: `1px solid ${color}`,
+                            color: color,
+                            borderRadius: '6px',
+                            height: '40px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onClick={() => setProbeState({ q0: rIdx, q1: cIdx, q2: fixedLane2 })}
+                          title={`State (q0=${rIdx}, q1=${cIdx}, q2=${fixedLane2}) -> Pick Lane ${action}`}
+                        >
+                          L{action}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading decision matrix...</div>
+            )}
           </div>
         </div>
 
-        {/* Max Q-Value Matrix */}
+        {/* Max Value Surface Heatmap */}
         <div className="glass-card">
           <div className="card-header">
             <div className="card-title-group">
-              <span className="card-title">Max Q-Value Surface Slice [Fixed Lane 2 = {fixedLane2}]</span>
+              <span className="card-title">Max Action Value Surface (q₂ = {fixedLane2})</span>
             </div>
-            <span className="badge badge-info">$\max_a Q(s, a)$</span>
+            <span className="badge badge-info">Expected Future Return</span>
           </div>
-          <div className="card-body">
-            <div style={{ textAlign: 'center', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Values represent expected cumulative discounted returns from state $s$.
-            </div>
 
-            <div className="heatmap-container">
-              {policyData?.maxQValues ? (
-                policyData.maxQValues.map((row, q0) =>
-                  row.map((val, q1) => (
-                    <div
-                      key={`q-${q0}-${q1}`}
-                      className="heatmap-cell"
-                      style={{
-                        background: `rgba(16, 185, 129, ${Math.max(0.15, Math.min(0.9, (val + 10) / 15))})`,
-                        color: '#ffffff',
-                        fontSize: '0.72rem'
-                      }}
-                      title={`State: (${q0}, ${q1}, ${fixedLane2}) -> Max Q: ${val}`}
-                      onClick={() => setProbeState({ q0, q1, q2: fixedLane2 })}
-                    >
-                      {val}
+          <div className="card-body">
+            {policyData ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '50px repeat(6, 1fr)', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <div>q₀ \ q₁</div>
+                  {[0, 1, 2, 3, 4, 5].map((col) => <div key={col}>q₁={col}</div>)}
+                </div>
+
+                {policyData.maxQValues.map((row, rIdx) => (
+                  <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: '50px repeat(6, 1fr)', gap: '6px', alignItems: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>
+                      q₀={rIdx}
                     </div>
-                  ))
-                )
-              ) : (
-                <div style={{ gridColumn: 'span 6', padding: '40px', textAlign: 'center' }}>Loading Q surface...</div>
-              )}
-            </div>
-            <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Higher values (darker green) indicate desirable low-congestion store states.
-            </div>
+                    {row.map((val, cIdx) => (
+                      <div
+                        key={cIdx}
+                        style={{
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          borderRadius: '6px',
+                          height: '40px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontFamily: 'monospace',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          color: val < -50 ? '#ef4444' : val < -25 ? '#f59e0b' : '#10b981'
+                        }}
+                      >
+                        {val}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading value surface...</div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Interactive State Probe & Q-Value Breakdown */}
-      <div className="glass-card">
-        <div className="card-header">
-          <div className="card-title-group">
-            <Sliders size={18} color="#3b82f6" />
-            <span className="card-title">Interactive State Probe & Action-Value Inspector</span>
-          </div>
-          <span className="badge badge-success">
-            Inspecting State: ({probeState.q0}, {probeState.q1}, {probeState.q2})
-          </span>
-        </div>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'center' }}>
+      {/* State Value Probe Inspector */}
+      <div className="glass-card" style={{ padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '14px' }}>
-              Select Queue Lengths $(q_0, q_1, q_2)$:
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Zap size={20} color="#10b981" />
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Arbitrary State Probe & Action Breakdown</h3>
             </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '4px' }}>
+              Select any queue configuration (q₀, q₁, q₂) to evaluate {activeModelMeta.name}'s action evaluations.
+            </p>
+          </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             {['q0', 'q1', 'q2'].map((laneKey, idx) => (
-              <div key={laneKey} style={{ marginBottom: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
-                  <span>Lane {idx} Active Queue:</span>
-                  <span style={{ fontWeight: 700 }}>{probeState[laneKey]} Customers</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
+              <div key={laneKey} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>{laneKey}:</label>
+                <select
                   value={probeState[laneKey]}
                   onChange={(e) => setProbeState({ ...probeState, [laneKey]: Number(e.target.value) })}
-                  style={{ width: '100%', accentColor: idx === 0 ? '#10b981' : idx === 1 ? '#3b82f6' : '#f59e0b' }}
-                />
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                    borderRadius: '6px',
+                    padding: '4px 8px'
+                  }}
+                >
+                  {[0, 1, 2, 3, 4, 5].map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
               </div>
             ))}
-
-            <div style={{ padding: '14px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginTop: '16px' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Policy Recommendation:</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#10b981', marginTop: '4px' }}>
-                Route arriving customer to Lane {probeResult?.bestAction ?? 0}
-              </div>
-            </div>
           </div>
+        </div>
 
-          <div style={{ height: '240px' }}>
+        <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+          <div style={{ height: '220px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={probeChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.5} />
+              <BarChart data={probeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.6} />
                 <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
                 <YAxis stroke="var(--text-muted)" fontSize={12} />
                 <Tooltip
@@ -231,40 +364,26 @@ export default function PolicyStudioView({ trainingHistory, onRetrain, isTrainin
                     color: 'var(--text-primary)'
                   }}
                 />
-                <Bar dataKey="qValue" name="Q(s, a)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="value" name="Action Metric Value" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      </div>
 
-      {/* Training Performance Convergence Curve */}
-      <div className="glass-card">
-        <div className="card-header">
-          <div className="card-title-group">
-            <span className="card-title">Q-Learning Training Progress & Reward Convergence</span>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '12px' }}>
+            <div style={{ padding: '14px', borderRadius: '8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Optimal Action Choice</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981', marginTop: '2px' }}>
+                Route to Lane {probeResult?.bestAction ?? 0}
+              </div>
+            </div>
+
+            <div style={{ padding: '14px', borderRadius: '8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Action Distribution / Preferences</div>
+              <div style={{ fontSize: '0.9rem', fontFamily: 'monospace', marginTop: '4px' }}>
+                {probeResult ? probeResult.qValues.map((v, i) => `L${i}: ${v}`).join('  |  ') : '...'}
+              </div>
+            </div>
           </div>
-          <span className="badge badge-success">250 Episodes (25 steps/ep)</span>
-        </div>
-        <div className="card-body" style={{ height: '320px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trainingHistory} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.6} />
-              <XAxis dataKey="episode" stroke="var(--text-muted)" fontSize={12} label={{ value: 'Episode', position: 'insideBottom', offset: -5 }} />
-              <YAxis stroke="var(--text-muted)" fontSize={12} label={{ value: 'Episodic Return', angle: -90, position: 'insideLeft' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderColor: 'var(--border-color)',
-                  borderRadius: '8px',
-                  color: 'var(--text-primary)'
-                }}
-              />
-              <Legend verticalAlign="top" height={36} />
-              <Line type="monotone" dataKey="reward" name="Raw Cumulative Return" stroke="#3b82f6" strokeWidth={1} dot={false} opacity={0.4} />
-              <Line type="monotone" dataKey="movingAvg" name="10-Episode Moving Average" stroke="#10b981" strokeWidth={2.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
         </div>
       </div>
     </div>

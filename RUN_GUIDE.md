@@ -4,19 +4,19 @@ A modern, full-stack retail queue analytics dashboard powered by **Tabular Q-Lea
 
 ---
 
-## 🌟 Architecture & Features
+## 🌟 Reinforcement Learning Model Spectrum
 
-- **Frontend**: React + Vite, Recharts, Lucide Icons, Pure CSS (No Tailwind), Dark/Light mode, Responsive desktop & mobile layout.
-- **Backend API**: Python Flask REST API with CORS (`http://127.0.0.1:5000/api`).
-- **Simulation Engine**:
-  - **Tabular Q-Learning**: Markov Decision Process over $(q_0, q_1, q_2)$ with asymmetric cashier speeds ($\mu_0=0.6, \mu_1=0.4, \mu_2=0.3$).
-  - **SimPy Discrete-Event Simulation**: Continuous-time customer arrival and service queues comparing Random, Shortest Queue, and Q-Learning policies.
-- **Interactive Capabilities**:
-  - Live animated 3-lane checkout counters with animated queues, cashier statuses, and Q-value breakdown.
-  - Step-by-step interactive customer dispatch and auto-play modes.
-  - Policy Decision Heatmap and Max Q-value surface inspector.
-  - 100-step benchmark comparison curve and downloadable CSV transition logs.
-  - Interactive parameter tuning (service rates $\mu_i$, learning rate $\alpha$, discount $\gamma$, exploration $\epsilon$).
+OptiQueue AI includes 9 distinct reinforcement learning architectures:
+
+1. **Tabular Q-Learning**: Value-based off-policy 1-step TD control estimating $Q^*(s, a)$.
+2. **SARSA**: Value-based on-policy TD control accounting for exploratory actions, resulting in safer conservative queue boundaries.
+3. **Multi-Armed Bandit (Contextual UCB1)**: Adaptive arm-selection baseline balancing exploitation and exploration bonuses without discount factors.
+4. **REINFORCE (with Baseline)**: Episodic Monte Carlo policy gradient optimizing softmax action preferences with a learned state-value baseline $V(s)$.
+5. **A2C (Advantage Actor-Critic)**: Synchronous actor-critic updating policy preferences and state-value baseline simultaneously via 1-step TD advantage.
+6. **PPO (Proximal Policy Optimization)**: State-of-the-art actor-critic using clipped surrogate objective $L^{\text{CLIP}}(\theta)$ and Generalized Advantage Estimation (GAE) to prevent destructive policy degradation.
+7. **DQN (Deep Q-Network)**: Deep neural function approximation with Experience Replay Buffer and periodic Target Network updates.
+8. **Double DQN (DDQN)**: Decouples online greedy action selection from target network evaluation to eliminate maximization overestimation bias.
+9. **DDPG (Deep Deterministic Policy Gradient)**: Off-policy actor-critic using deterministic policy gradients, continuous action evaluation, and Polyak soft updates.
 
 ---
 
@@ -26,33 +26,28 @@ A modern, full-stack retail queue analytics dashboard powered by **Tabular Q-Lea
 - **Python 3.9+**
 - **Node.js 18+ and npm**
 
-### 1. Backend Setup
-From the repository root:
-```bash
-# Install backend dependencies
-pip install flask flask-cors simpy numpy matplotlib seaborn
+### 1. One-Click Launch (Windows)
+Double-click `start.bat` in the repository root to start both the Python backend and React frontend automatically.
 
-# Start the Flask backend server
+### 2. Manual Startup
+**Backend API:**
+```bash
 python backend/app.py
 ```
-The API will start at: `http://127.0.0.1:5000`
+*API running at: `http://127.0.0.1:5000`*
 
----
-
-### 2. Frontend Setup
-In a new terminal window:
+**Frontend UI:**
 ```bash
-# Navigate to the frontend directory
 cd frontend
-
-# Install frontend dependencies (if not already installed)
 npm install
-
-# Start the Vite development server
 npm run dev
 ```
-Open your browser and navigate to:
-👉 **`http://localhost:5173`**
+*Web dashboard running at: `http://localhost:5173`*
+
+**SimPy Terminal Arena:**
+```bash
+python backend/simpy_engine.py
+```
 
 ---
 
@@ -60,20 +55,13 @@ Open your browser and navigate to:
 
 | Endpoint | Method | Description |
 | :--- | :---: | :--- |
-| `/api/status` | `GET` | Environment status, current $\epsilon$, $\mu$ rates, and trained episodes |
-| `/api/benchmark` | `POST` | Runs 100-step simulation comparing Random Baseline vs Q-Learning |
-| `/api/interactive/step` | `POST` | Dispatches 1 customer arrival (Q-Learning, Random, or Manual action) |
+| `/api/status` | `GET` | Environment status, active model, and list of all 6 available RL algorithms |
+| `/api/models` | `GET` | Metadata, tags, and architectures for all implemented models |
+| `/api/models/select` | `POST` | Sets the active dispatch model (`modelId`) |
+| `/api/benchmark` | `POST` | 100-step multi-model benchmark leaderboard comparing all 6 RL models vs baselines |
+| `/api/interactive/step` | `POST` | Dispatches 1 customer arrival using selected RL model, heuristic, or manual action |
 | `/api/interactive/reset` | `POST` | Resets interactive checkout queues |
-| `/api/policy?fixedLane2=0` | `GET` | Returns 6x6 policy decision matrix and Max Q-value slice |
-| `/api/q_values` | `POST` | Returns Q-values $[Q(s, 0), Q(s, 1), Q(s, 2)]$ for any state $(q_0, q_1, q_2)$ |
-| `/api/simpy/run` | `POST` | Runs continuous-time SimPy comparison between Random, Heuristic, and RL |
-| `/api/train` | `POST` | Retrains Q-Learning agent with custom hyperparameters |
-
----
-
-## 📊 Authentic Simulation Benchmarks
-
-- **Baseline Random Routing Total Wait**: `381` wait-units
-- **Q-Learning RL Optimizer Total Wait**: `268` wait-units
-- **Congestion Reduction**: **`29.66%`** reduction
-- **Cashier Variance**: Smoothed from `0.85` down to `0.38`
+| `/api/policy?modelId=ppo&fixedLane2=0` | `GET` | Returns 6x6 policy decision matrix and value surface for any algorithm |
+| `/api/q_values` | `POST` | Returns action values/probabilities for any state $(q_0, q_1, q_2)$ under any model |
+| `/api/simpy/run` | `POST` | Executes continuous-time SimPy discrete-event simulation comparing all 8 strategies |
+| `/api/train` | `POST` | Retrains any specific model or all models with custom hyperparameters |

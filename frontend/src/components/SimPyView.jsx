@@ -11,7 +11,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { Clock, Play, CheckCircle2, TrendingDown, Users, Percent, RefreshCw } from 'lucide-react';
+import { Clock, Play, CheckCircle2, TrendingDown, Users, Percent, RefreshCw, Trophy } from 'lucide-react';
 import { api } from '../api';
 
 export default function SimPyView({ initialData }) {
@@ -36,11 +36,11 @@ export default function SimPyView({ initialData }) {
   };
 
   const summary = simpyResults?.summary || [];
-  const waitReductionPct = simpyResults?.waitReductionPct ?? 32.5;
+  const bestPolicy = simpyResults?.bestPolicy || (summary[0]?.label ?? 'Q-Learning');
 
   // Chart data for wait times
   const waitTimeChartData = summary.map((s) => ({
-    policy: s.label,
+    policy: s.label.replace(' (Off-Policy TD)', '').replace(' (On-Policy TD)', '').replace(' (w/ Baseline)', ''),
     avgWaitTime: s.avgWaitTime,
     maxWaitTime: s.maxWaitTime,
     served: s.customersServed
@@ -48,7 +48,7 @@ export default function SimPyView({ initialData }) {
 
   // Chart data for utilization
   const utilizationChartData = summary.map((s) => ({
-    policy: s.label,
+    policy: s.label.replace(' (Off-Policy TD)', '').replace(' (On-Policy TD)', '').replace(' (w/ Baseline)', ''),
     'Lane 0 (Fast: μ=0.6)': s.utilization[0] || 0,
     'Lane 1 (Mid: μ=0.4)': s.utilization[1] || 0,
     'Lane 2 (Slow: μ=0.3)': s.utilization[2] || 0
@@ -61,10 +61,10 @@ export default function SimPyView({ initialData }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Clock size={22} color="#10b981" />
-            <h2 style={{ fontSize: '1.25rem' }}>SimPy Discrete-Event Queue Simulation Engine</h2>
+            <h2 style={{ fontSize: '1.25rem' }}>SimPy Multi-Policy Discrete-Event Simulation Arena</h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
-            Simulates continuous stochastic customer arrival processes (`simpy.Environment`) and cashier server resources.
+            Simulates continuous stochastic customer arrivals (`simpy.Environment`) and cashier server resources across all 6 RL algorithms.
           </p>
         </div>
 
@@ -116,8 +116,8 @@ export default function SimPyView({ initialData }) {
             onClick={runSimPySimulation}
             disabled={isRunning}
           >
-            {isRunning ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
-            {isRunning ? 'Running SimPy...' : 'Execute SimPy Run'}
+            {isRunning ? <RefreshCw size={16} className="spin-icon" /> : <Play size={16} />}
+            {isRunning ? 'Running SimPy...' : 'Execute Arena Run'}
           </button>
         </div>
       </div>
@@ -126,31 +126,30 @@ export default function SimPyView({ initialData }) {
       <div className="kpi-grid">
         <div className="glass-card kpi-card" style={{ '--card-accent': '#10b981' }}>
           <div className="kpi-top">
-            <span className="kpi-label">Average Wait Reduction</span>
+            <span className="kpi-label">Top Performing Strategy</span>
             <div className="kpi-icon-box">
-              <TrendingDown size={20} />
+              <Trophy size={20} color="#f59e0b" />
             </div>
           </div>
           <div className="kpi-value-row">
-            <span className="kpi-value">{waitReductionPct}%</span>
-            <span className="kpi-unit">Faster</span>
+            <span className="kpi-value" style={{ fontSize: '1.25rem' }}>{bestPolicy}</span>
           </div>
           <div className="kpi-subtext">
-            <span className="badge badge-success">SimPy Event Metrics</span>
-            <span>Q-Learning vs Random Baseline</span>
+            <span className="badge badge-success">Discrete-Event Winner</span>
+            <span>Lowest Average Wait Time</span>
           </div>
         </div>
 
-        {summary.map((pol, idx) => (
+        {summary.slice(0, 3).map((pol, idx) => (
           <div
             key={pol.policy}
             className="glass-card kpi-card"
-            style={{ '--card-accent': idx === 0 ? '#ef4444' : idx === 1 ? '#3b82f6' : '#10b981' }}
+            style={{ '--card-accent': pol.color || '#3b82f6' }}
           >
             <div className="kpi-top">
-              <span className="kpi-label">{pol.label}</span>
+              <span className="kpi-label">#{idx + 1}: {pol.label}</span>
               <div className="kpi-icon-box">
-                <Users size={20} />
+                <Users size={20} color={pol.color} />
               </div>
             </div>
             <div className="kpi-value-row">
@@ -158,7 +157,7 @@ export default function SimPyView({ initialData }) {
               <span className="kpi-unit">sec wait</span>
             </div>
             <div className="kpi-subtext">
-              <span>Served: {pol.customersServed} | Max Wait: {pol.maxWaitTime}s</span>
+              <span>Served: {pol.customersServed} | Max: {pol.maxWaitTime}s</span>
             </div>
           </div>
         ))}
@@ -170,15 +169,15 @@ export default function SimPyView({ initialData }) {
         <div className="glass-card">
           <div className="card-header">
             <div className="card-title-group">
-              <span className="card-title">Average & Max Customer Wait Time</span>
+              <span className="card-title">Average & Max Customer Wait Time by Model</span>
             </div>
             <span className="badge badge-success">Seconds</span>
           </div>
-          <div className="card-body" style={{ height: '320px' }}>
+          <div className="card-body" style={{ height: '340px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={waitTimeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <BarChart data={waitTimeChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.6} />
-                <XAxis dataKey="policy" stroke="var(--text-muted)" fontSize={12} />
+                <XAxis dataKey="policy" stroke="var(--text-muted)" fontSize={11} interval={0} angle={-15} textAnchor="end" />
                 <YAxis stroke="var(--text-muted)" fontSize={12} label={{ value: 'Seconds', angle: -90, position: 'insideLeft' }} />
                 <Tooltip
                   contentStyle={{
@@ -200,15 +199,15 @@ export default function SimPyView({ initialData }) {
         <div className="glass-card">
           <div className="card-header">
             <div className="card-title-group">
-              <span className="card-title">Cashier Server Utilization (%)</span>
+              <span className="card-title">Cashier Server Utilization (%) Across Policies</span>
             </div>
             <span className="badge badge-info">Busy Time / Total Time</span>
           </div>
-          <div className="card-body" style={{ height: '320px' }}>
+          <div className="card-body" style={{ height: '340px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={utilizationChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <BarChart data={utilizationChartData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.6} />
-                <XAxis dataKey="policy" stroke="var(--text-muted)" fontSize={12} />
+                <XAxis dataKey="policy" stroke="var(--text-muted)" fontSize={11} interval={0} angle={-15} textAnchor="end" />
                 <YAxis domain={[0, 100]} stroke="var(--text-muted)" fontSize={12} label={{ value: '% Utilization', angle: -90, position: 'insideLeft' }} />
                 <Tooltip
                   contentStyle={{
@@ -232,7 +231,7 @@ export default function SimPyView({ initialData }) {
       <div className="glass-card">
         <div className="card-header">
           <div className="card-title-group">
-            <span className="card-title">SimPy Discrete-Event Simulation Policy Matrix</span>
+            <span className="card-title">SimPy Discrete-Event Simulation Arena Matrix</span>
           </div>
           <span className="badge badge-success">Duration: {simTime}s | Arrival Rate λ: {arrivalRate}</span>
         </div>
@@ -246,17 +245,17 @@ export default function SimPyView({ initialData }) {
                   <th>Average Wait Time</th>
                   <th>Maximum Peak Wait</th>
                   <th>Avg Total Store Queue</th>
-                  <th>Lane 0 Utilization</th>
-                  <th>Lane 1 Utilization</th>
-                  <th>Lane 2 Utilization</th>
+                  <th>Lane 0 (μ=0.6)</th>
+                  <th>Lane 1 (μ=0.4)</th>
+                  <th>Lane 2 (μ=0.3)</th>
                 </tr>
               </thead>
               <tbody>
                 {summary.map((row) => (
                   <tr key={row.policy}>
-                    <td style={{ fontWeight: 600 }}>{row.label}</td>
+                    <td style={{ fontWeight: 700, color: row.color || 'inherit' }}>{row.label}</td>
                     <td>{row.customersServed} customers</td>
-                    <td style={{ fontWeight: 700, color: row.policy === 'q_learning' ? '#10b981' : 'inherit' }}>
+                    <td style={{ fontWeight: 700, color: row.avgWaitTime < 2.5 ? '#10b981' : row.avgWaitTime > 4.0 ? '#ef4444' : 'inherit' }}>
                       {row.avgWaitTime}s
                     </td>
                     <td>{row.maxWaitTime}s</td>

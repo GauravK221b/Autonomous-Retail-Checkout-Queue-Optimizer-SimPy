@@ -34,20 +34,48 @@ sim_service = SimulationService()
 
 @app.route("/api/status", methods=["GET"])
 def get_status():
+    active_agent = sim_service.agent
+    eps = getattr(active_agent, "epsilon", 0.05)
+    gamma = getattr(active_agent, "gamma", 0.95)
+    alpha = getattr(active_agent, "alpha", getattr(active_agent, "alpha_pi", getattr(active_agent, "alpha_actor", 0.1)))
+
     return jsonify({
         "status": "online",
+        "activeModelId": sim_service.active_model_id,
+        "activeModelName": active_agent.name,
+        "activeModelType": active_agent.model_type,
         "trainedEpisodes": sim_service.trained_episodes,
         "numCounters": sim_service.num_counters,
         "maxQueueLen": sim_service.max_queue_len,
         "serviceRates": sim_service.service_rates,
-        "epsilon": round(float(sim_service.agent.epsilon), 4),
-        "gamma": sim_service.agent.gamma,
-        "alpha": sim_service.agent.alpha
+        "epsilon": round(float(eps), 4),
+        "gamma": round(float(gamma), 4),
+        "alpha": round(float(alpha), 4),
+        "models": sim_service.get_models_overview()
+    })
+
+@app.route("/api/models", methods=["GET"])
+def get_models():
+    return jsonify({
+        "activeModelId": sim_service.active_model_id,
+        "models": sim_service.get_models_overview()
+    })
+
+@app.route("/api/models/select", methods=["POST"])
+def select_model():
+    data = request.get_json() or {}
+    model_id = data.get("modelId", "q_learning")
+    success = sim_service.set_active_model(model_id)
+    return jsonify({
+        "success": success,
+        "activeModelId": sim_service.active_model_id,
+        "activeModelName": sim_service.agent.name
     })
 
 @app.route("/api/train", methods=["POST"])
 def train():
     data = request.get_json() or {}
+    model_type = data.get("modelType", None)  # 'q_learning', 'sarsa', 'bandit', 'reinforce', 'a2c', 'ppo', or None/'all'
     episodes = int(data.get("episodes", 250))
     steps_per_episode = int(data.get("stepsPerEpisode", 25))
     alpha = float(data.get("alpha", 0.1))
@@ -67,7 +95,8 @@ def train():
         epsilon=epsilon,
         epsilon_decay=epsilon_decay,
         min_epsilon=min_epsilon,
-        service_rates=service_rates
+        service_rates=service_rates,
+        model_type=model_type
     )
     return jsonify(make_serializable(result))
 
@@ -76,22 +105,29 @@ def run_benchmark():
     data = request.get_json() or {}
     steps = int(data.get("steps", 100))
     service_rates = data.get("serviceRates", None)
+    selected_model_id = data.get("modelId", None)
     if service_rates:
         service_rates = [float(r) for r in service_rates]
 
-    result = sim_service.run_benchmark(steps=steps, service_rates=service_rates)
+    result = sim_service.run_benchmark(
+        steps=steps,
+        service_rates=service_rates,
+        selected_model_id=selected_model_id
+    )
     return jsonify(make_serializable(result))
 
 @app.route("/api/interactive/reset", methods=["POST"])
 def interactive_reset():
-    result = sim_service.reset_interactive()
+    data = request.get_json() or {}
+    model_id = data.get("modelId", None)
+    result = sim_service.reset_interactive(model_id=model_id)
     return jsonify(make_serializable(result))
 
 @app.route("/api/interactive/step", methods=["POST"])
 def interactive_step():
     data = request.get_json() or {}
     action = data.get("action", None)
-    mode = data.get("mode", "q_learning")
+    mode = data.get("mode", sim_service.active_model_id)
 
     result = sim_service.step_interactive(action=action, mode=mode)
     return jsonify(make_serializable(result))
@@ -99,7 +135,8 @@ def interactive_step():
 @app.route("/api/policy", methods=["GET"])
 def get_policy():
     fixed_lane2 = int(request.args.get("fixedLane2", 0))
-    result = sim_service.get_policy_matrix(fixed_lane2=fixed_lane2)
+    model_id = request.args.get("modelId", sim_service.active_model_id)
+    result = sim_service.get_policy_matrix(model_id=model_id, fixed_lane2=fixed_lane2)
     return jsonify(make_serializable(result))
 
 @app.route("/api/q_values", methods=["POST"])
@@ -108,8 +145,9 @@ def get_q_values():
     q0 = int(data.get("q0", 0))
     q1 = int(data.get("q1", 0))
     q2 = int(data.get("q2", 0))
+    model_id = data.get("modelId", sim_service.active_model_id)
 
-    result = sim_service.get_state_q_values(q0, q1, q2)
+    result = sim_service.get_state_q_values(q0, q1, q2, model_id=model_id)
     return jsonify(make_serializable(result))
 
 @app.route("/api/simpy/run", methods=["POST"])
@@ -127,14 +165,25 @@ def run_simpy():
     )
 
     results = simulator.run_comparison(
-        q_learning_agent=sim_service.agent,
+        agents_dict=sim_service.models,
         max_queue_len=sim_service.max_queue_len
     )
     return jsonify(make_serializable(results))
 
+@app.route("/api/comparative_analysis", methods=["GET", "POST"])
+def get_comparative_analysis():
+    scenario = "normal"
+    if request.method == "POST":
+        data = request.get_json() or {}
+        scenario = data.get("scenario", "normal")
+    else:
+        scenario = request.args.get("scenario", "normal")
+    result = sim_service.run_comparative_analysis(scenario_name=scenario)
+    return jsonify(make_serializable(result))
+
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"[OptiQueue AI] Starting Retail Checkout Queue Optimizer API on http://127.0.0.1:{port}")
+    print(f"[OptiQueue AI] Starting Multi-Model Retail Queue Optimizer API on http://127.0.0.1:{port}")
     app.run(host="127.0.0.1", port=port, debug=False)
-

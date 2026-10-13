@@ -11,7 +11,8 @@ import {
   Sun,
   Moon,
   Activity,
-  Sparkles
+  Sparkles,
+  Scale
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -26,6 +27,7 @@ export default function Sidebar({
 }) {
   const navItems = [
     { id: 'overview', label: 'Store Overview', icon: LayoutDashboard },
+    { id: 'comparison', label: 'Comparative Analysis', icon: Scale },
     { id: 'simulation', label: 'Live Checkout Sim', icon: ShoppingCart },
     { id: 'policy', label: 'RL Policy Studio', icon: BrainCircuit },
     { id: 'simpy', label: 'SimPy Event Engine', icon: Clock },
